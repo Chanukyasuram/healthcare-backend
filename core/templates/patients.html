@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Patients | Healthcare App</title>
+  <style>
+    :root { --primary:#4facfe; --primary2:#00f2fe; --bg:#f0f4f8; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: Inter, Arial, sans-serif; background: var(--bg); color:#222; }
+    header { background: linear-gradient(90deg,var(--primary),var(--primary2)); color:#fff; padding:16px 20px; display:flex; align-items:center; justify-content:space-between; }
+    header .left { display:flex; gap:12px; align-items:center; }
+    header a { color:#fff; text-decoration:none; font-weight:600; }
+    .container { max-width:1100px; margin:28px auto; padding:0 18px; }
+    .card { background:#fff; border-radius:14px; box-shadow:0 10px 24px rgba(0,0,0,.08); padding:20px; }
+    h1 { margin:0 0 10px; }
+    .muted { color:#666; font-size:14px; }
+    .toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:10px 0 18px; }
+    button, .btn { border:none; background:var(--primary); color:#fff; padding:10px 14px; border-radius:10px; font-weight:600; cursor:pointer; transition:.2s; }
+    button:hover, .btn:hover { background:var(--primary2); }
+    .btn-secondary { background:#e9eef5; color:#222; }
+    .btn-danger { background:#e74c3c; }
+    .btn-danger:hover { background:#ff6b5e; }
+    table { width:100%; border-collapse:collapse; border-radius:12px; overflow:hidden; }
+    th, td { padding:12px 10px; border-bottom:1px solid #eee; text-align:left; vertical-align:top; }
+    th { background:#fafbfd; font-weight:700; }
+    tr:hover td { background:#fafcff; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; background:#eef5ff; color:#1b66ff; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    textarea { width:100%; min-height:120px; resize:vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; padding:10px; border-radius:10px; border:1px solid #ddd; }
+    input[type="text"] { width:100%; padding:10px; border-radius:10px; border:1px solid #ddd; }
+    .hidden { display:none; }
+    .footer { margin-top:18px; font-size:12px; color:#777; text-align:center; }
+    .right { display:flex; align-items:center; gap:8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="left">
+      <a href="http://127.0.0.1:8000">🏠 Home</a>
+      <span>|</span>
+      <strong>Patients</strong>
+      <span id="role-pill" class="pill"></span>
+    </div>
+    <div class="right">
+      <a class="btn btn-secondary" href="doctors.html">Doctors</a>
+      <button class="btn btn-secondary" id="logoutBtn">Logout</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="card">
+      <h1>Patients</h1>
+      <p class="muted">View and manage patients created by the logged-in user. Admins get full controls.</p>
+
+      <div class="toolbar">
+        <button id="reloadBtn">Reload</button>
+        <button id="newBtn">+ New Patient</button>
+        <span id="status" class="muted"></span>
+      </div>
+
+      <!-- Create / Edit panel -->
+      <div id="editor" class="hidden">
+        <div class="grid">
+          <div>
+            <label class="muted">Quick Name (optional)</label>
+            <input type="text" id="quick-name" placeholder="e.g., John Doe"/>
+          </div>
+          <div>
+            <label class="muted">Preset Body (optional)</label>
+            <input type="text" id="preset" placeholder='e.g., {"age":35, "gender":"M"}'/>
+          </div>
+        </div>
+        <div style="margin-top:10px">
+          <label class="muted">Raw JSON payload</label>
+          <textarea id="json-body" placeholder='{"name":"John Doe","age":35}'></textarea>
+        </div>
+        <div class="toolbar">
+          <button id="saveBtn">Save</button>
+          <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
+        </div>
+      </div>
+
+      <table id="table">
+        <thead>
+          <tr id="thead-row">
+            <th>#</th>
+            <th>ID</th>
+            <th>Name / Summary</th>
+            <th>Data</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="5" class="muted">Loading…</td></tr>
+        </tbody>
+      </table>
+
+      <div class="footer">© 2025 Healthcare App</div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://127.0.0.1:8000/api/';
+    const role = localStorage.getItem('role') || 'user';
+    const access = () => localStorage.getItem('access');
+    const refresh = () => localStorage.getItem('refresh');
+
+    const rolePill = document.getElementById('role-pill');
+    rolePill.textContent = role.toUpperCase();
+
+    const statusEl = document.getElementById('status');
+    const tableBody = document.getElementById('tbody');
+    const editor = document.getElementById('editor');
+    const jsonBody = document.getElementById('json-body');
+    const quickName = document.getElementById('quick-name');
+    const preset = document.getElementById('preset');
+    const newBtn = document.getElementById('newBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const reloadBtn = document.getElementById('reloadBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    let editId = null; // null = create, else update
+
+    if (!access()) {
+      window.location.href = 'index.html';
+    }
+
+    logoutBtn.onclick = () => {
+      localStorage.removeItem('access');
+      localStorage.removeItem('refresh');
+      localStorage.removeItem('role');
+      window.location.href = 'index.html';
+    };
+
+    async function fetchWithAuth(url, options = {}) {
+      const opts = {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + access(),
+          ...(options.headers || {})
+        }
+      };
+      let res = await fetch(url, opts);
+      if (res.status === 401) {
+        // try refresh once
+        const r = await fetch(API_BASE + 'auth/token/refresh/', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ refresh: refresh() })
+        });
+        if (r.ok) {
+          const data = await r.json();
+          localStorage.setItem('access', data.access);
+          // retry original
+          opts.headers['Authorization'] = 'Bearer ' + data.access;
+          res = await fetch(url, opts);
+        } else {
+          window.location.href = 'index.html';
+          return res;
+        }
+      }
+      return res;
+    }
+
+    function showEditor(open, prefill=null) {
+      editor.classList.toggle('hidden', !open);
+      if (!open) return;
+      if (prefill) {
+        editId = prefill.id;
+        quickName.value = prefill.name || '';
+        jsonBody.value = JSON.stringify(prefill, null, 2);
+        preset.value = '';
+      } else {
+        editId = null;
+        quickName.value = '';
+        preset.value = '';
+        jsonBody.value = JSON.stringify({ name: "" }, null, 2);
+      }
+    }
+
+    newBtn.onclick = () => showEditor(true);
+    cancelBtn.onclick = () => showEditor(false);
+
+    saveBtn.onclick = async () => {
+      try {
+        let body = {};
+        if (jsonBody.value.trim()) {
+          body = JSON.parse(jsonBody.value);
+        }
+        if (quickName.value.trim()) body.name = quickName.value.trim();
+        if (preset.value.trim()) {
+          const pv = JSON.parse(preset.value);
+          body = { ...pv, ...body };
+        }
+
+        const method = editId ? 'PUT' : 'POST';
+        const url = editId ? `${API_BASE}patients/${editId}/` : `${API_BASE}patients/`;
+
+        const res = await fetchWithAuth(url, {
+          method,
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!res.ok) throw data;
+
+        statusEl.textContent = editId ? 'Updated ✔' : 'Created ✔';
+        showEditor(false);
+        await loadPatients();
+      } catch (e) {
+        alert('Error saving:\n' + (typeof e === 'string' ? e : JSON.stringify(e, null, 2)));
+      }
+    };
+
+    async function loadPatients() {
+      tableBody.innerHTML = `<tr><td colspan="5" class="muted">Loading…</td></tr>`;
+      const res = await fetchWithAuth(API_BASE + 'patients/');
+      if (!res.ok) {
+        tableBody.innerHTML = `<tr><td colspan="5" class="muted">Failed to load (${res.status})</td></tr>`;
+        return;
+      }
+      const items = await res.json();
+      if (!Array.isArray(items) || items.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="5" class="muted">No patients yet.</td></tr>`;
+        return;
+      }
+      tableBody.innerHTML = '';
+      items.forEach((it, idx) => {
+        const tr = document.createElement('tr');
+
+        const id = it.id ?? '';
+        const name = it.name ?? it.full_name ?? it.title ?? '(no name)';
+        const copy = { ...it }; // show remaining data
+        delete copy.id; delete copy.name; delete copy.full_name; delete copy.title;
+
+        tr.innerHTML = `
+          <td>${idx + 1}</td>
+          <td>${id}</td>
+          <td><strong>${name}</strong></td>
+          <td><pre style="white-space:pre-wrap;margin:0">${escapeHtml(JSON.stringify(copy, null, 2))}</pre></td>
+          <td>
+            <div style="display:flex; gap:8px; flex-wrap:wrap">
+              <button class="btn" data-edit="${id}">Edit</button>
+              <button class="btn btn-danger" data-del="${id}">Delete</button>
+            </div>
+          </td>
+        `;
+        tableBody.appendChild(tr);
+      });
+
+      // Hide destructive controls for non-admin if you want (optional)
+      if (role !== 'admin') {
+        // Comment out next line if normal users should also be able to delete
+        // tableBody.querySelectorAll('[data-del]').forEach(btn => btn.style.display='none');
+      }
+
+      tableBody.querySelectorAll('[data-edit]').forEach(btn => {
+        btn.onclick = () => onEdit(btn.getAttribute('data-edit'));
+      });
+      tableBody.querySelectorAll('[data-del]').forEach(btn => {
+        btn.onclick = () => onDelete(btn.getAttribute('data-del'));
+      });
+    }
+
+    async function onEdit(id) {
+      const res = await fetchWithAuth(`${API_BASE}patients/${id}/`);
+      const data = await res.json();
+      if (!res.ok) { alert('Failed to load: ' + JSON.stringify(data)); return; }
+      showEditor(true, data);
+    }
+
+    async function onDelete(id) {
+      if (!confirm('Delete patient #' + id + '?')) return;
+      const res = await fetchWithAuth(`${API_BASE}patients/${id}/`, { method: 'DELETE' });
+      if (res.status === 204) {
+        statusEl.textContent = 'Deleted ✔';
+        loadPatients();
+      } else {
+        const d = await res.json().catch(()=>({}));
+        alert('Delete failed: ' + JSON.stringify(d || {status: res.status}));
+      }
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    }
+
+    reloadBtn.onclick = loadPatients;
+
+    // init
+    loadPatients();
+  </script>
+</body>
+</html>

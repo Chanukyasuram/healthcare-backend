@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f0f4f8;
+    }
+    h1 { color: #4facfe; }
+    button {
+      margin: 5px;
+      padding: 10px 15px;
+      cursor: pointer;
+      border: none;
+      border-radius: 5px;
+      background: #4facfe;
+      color: white;
+      transition: 0.3s;
+    }
+    button:hover { background: #00f2fe; }
+
+    .section {
+      display: none;
+      margin-top: 20px;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0 15px 0;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+    }
+
+    form button {
+      width: auto;
+      padding: 10px 20px;
+    }
+
+    .list {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      padding: 10px;
+      border-radius: 5px;
+    }
+
+    .list-item {
+      padding: 5px 0;
+      border-bottom: 1px solid #eee;
+    }
+  </style>
+</head>
+<body>
+  <h1>Welcome Admin!</h1>
+
+  <!-- Buttons -->
+  <button onclick="showSection('add-doctor')">Add Doctor</button>
+  <button onclick="showSection('add-patient')">Add Patient</button>
+  <button onclick="showSection('view-doctors')">View Doctors</button>
+  <button onclick="showSection('view-patients')">View Patients</button>
+  <button onclick="showSection('assign-doctor')">Assign Doctor</button>
+
+  <!-- Sections -->
+  <div id="add-doctor" class="section">
+    <h2>Add Doctor</h2>
+    <form id="doctor-form">
+      <input type="text" id="doctor-name" placeholder="Doctor Name" required>
+      <input type="text" id="doctor-specialty" placeholder="Specialty" required>
+      <input type="text" id="doctor-phone" placeholder="Phone" required>
+      <button type="submit">Save Doctor</button>
+    </form>
+    <div id="doctor-msg"></div>
+  </div>
+
+  <div id="add-patient" class="section">
+    <h2>Add Patient</h2>
+    <form id="patient-form">
+      <input type="text" id="patient-name" placeholder="Patient Name" required>
+      <input type="number" id="patient-age" placeholder="Age" required>
+      <input type="text" id="patient-gender" placeholder="Gender" required>
+      <input type="text" id="patient-address" placeholder="Address" required>
+      <button type="submit">Save Patient</button>
+    </form>
+    <div id="patient-msg"></div>
+  </div>
+
+  <div id="view-doctors" class="section">
+    <h2>View Doctors</h2>
+    <div class="list" id="doctors-list">
+      <!-- Doctor list will be populated here -->
+    </div>
+  </div>
+
+  <div id="view-patients" class="section">
+    <h2>View Patients</h2>
+    <div class="list" id="patients-list">
+      <!-- Patient list will be populated here -->
+    </div>
+  </div>
+
+  <div id="assign-doctor" class="section">
+    <h2>Assign Doctor</h2>
+    <form id="assign-form">
+      <select id="select-patient">
+        <option value="">Select Patient</option>
+      </select>
+      <select id="select-doctor">
+        <option value="">Select Doctor</option>
+      </select>
+      <button type="submit">Assign</button>
+    </form>
+    <div id="assign-msg"></div>
+  </div>
+
+  <script>
+    function showSection(sectionId) {
+      const sections = document.querySelectorAll('.section');
+      sections.forEach(sec => sec.style.display = 'none');
+      document.getElementById(sectionId).style.display = 'block';
+    }
+
+    // Example: populate doctors/patients dynamically (later replace with API calls)
+    const doctors = ['Dr. Smith', 'Dr. John', 'Dr. Emily'];
+    const patients = ['Alice', 'Bob', 'Charlie'];
+
+    const doctorsList = document.getElementById('doctors-list');
+    doctors.forEach(d => {
+      const div = document.createElement('div');
+      div.className = 'list-item';
+      div.innerText = d;
+      doctorsList.appendChild(div);
+    });
+
+    const patientsList = document.getElementById('patients-list');
+    patients.forEach(p => {
+      const div = document.createElement('div');
+      div.className = 'list-item';
+      div.innerText = p;
+      patientsList.appendChild(div);
+    });
+
+    const selectPatient = document.getElementById('select-patient');
+    patients.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p;
+      opt.innerText = p;
+      selectPatient.appendChild(opt);
+    });
+
+    const selectDoctor = document.getElementById('select-doctor');
+    doctors.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.innerText = d;
+      selectDoctor.appendChild(opt);
+    });
+
+    // Handle form submissions (just example, replace with fetch API)
+    document.getElementById('doctor-form').addEventListener('submit', function(e){
+      e.preventDefault();
+      document.getElementById('doctor-msg').innerText = 'Doctor saved successfully!';
+    });
+
+    document.getElementById('patient-form').addEventListener('submit', function(e){
+      e.preventDefault();
+      document.getElementById('patient-msg').innerText = 'Patient saved successfully!';
+    });
+
+    document.getElementById('assign-form').addEventListener('submit', function(e){
+      e.preventDefault();
+      const doctor = selectDoctor.value;
+      const patient = selectPatient.value;
+      if(doctor && patient){
+        document.getElementById('assign-msg').innerText = `Assigned ${doctor} to ${patient}`;
+      } else {
+        document.getElementById('assign-msg').innerText = 'Please select both doctor and patient';
+      }
+    });
+
+  </script>
+</body>
+</html>
